@@ -558,6 +558,11 @@
                 switchView('map');
                 renderMap();
                 animateMapAdvance();
+                // Scroll the current tile into view (infinite map)
+                const currentTile = document.getElementById(`map-tile-${gameState.mapStep}`);
+                if (currentTile) {
+                    currentTile.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
             }, 1000);
         }
 
@@ -589,6 +594,11 @@
                 navMap.className = "flex flex-col items-center text-indigo-600 font-bold";
                 
                 renderMap();
+                // Scroll current tile into view when opening map
+                const currentTile = document.getElementById(`map-tile-${gameState.mapStep}`);
+                if (currentTile) {
+                    currentTile.scrollIntoView({ behavior: 'auto', block: 'center' });
+                }
             }
         }
 
@@ -596,7 +606,8 @@
             const container = document.getElementById('map-tiles-container');
             container.innerHTML = '';
 
-            const totalTiles = 15; // Map length
+            // Infinite map: always show at least 5 tiles ahead of current position (min 15)
+            const totalTiles = Math.max(15, gameState.mapStep + 5);
 
             for (let i = totalTiles; i >= 1; i--) {
                 const isCurrent = (i === gameState.mapStep);
@@ -611,10 +622,8 @@
                 let bgStyle = 'bg-white text-slate-700 border-slate-300 hover:border-indigo-400 cursor-pointer';
                 let icon = `${i}`;
 
-                if (i === 15) {
-                    icon = '👑'; // Goal
-                    bgStyle = 'bg-amber-300 text-amber-950 border-amber-400 text-xl font-bold cursor-pointer';
-                } else if (i % 5 === 0) {
+                // Treasure tile every 5 steps (no fixed goal — infinite adventure)
+                if (i % 5 === 0) {
                     icon = '🎁'; // Treasure tile
                     bgStyle = 'bg-purple-200 text-purple-900 border-purple-300 cursor-pointer';
                 }
