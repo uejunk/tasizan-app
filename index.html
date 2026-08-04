@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>たしざん まほうのぼうけん</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800;900&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* iOS safe area handling */
+        body {
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+            background: linear-gradient(135deg, #e0f2fe 0%, #fef3c7 100%);
+            min-height: 100vh;
+        }
+
+        /* Keypad button press effect */
+        .btn-key {
+            transition: transform 0.08s ease, box-shadow 0.08s ease;
+            box-shadow: 0 6px 0 rgba(0, 0, 0, 0.15);
+        }
+        .btn-key:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 rgba(0, 0, 0, 0.15);
+        }
+
+        /* Pop bounce animation */
+        @keyframes popIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            70% { transform: scale(1.08); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .pop-in {
+            animation: popIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        /* Shaking animation on wrong answer */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-10px); }
+            40%, 80% { transform: translateX(10px); }
+        }
+        .shake {
+            animation: shake 0.4s ease-in-out;
+        }
+
+        /* Character walking animation */
+        @keyframes bounceWalk {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-12px); }
+        }
+        .walking {
+            animation: bounceWalk 0.4s ease-in-out infinite;
+        }
+
+        /* Custom scrollbar hide */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen overflow-hidden text-slate-800">
+
+    <!-- Top Header Bar -->
+    <header class="w-full bg-white/80 backdrop-blur-md border-b border-sky-100 px-4 py-2 flex justify-between items-center z-10 shrink-0 shadow-sm">
+        <div class="flex items-center space-x-2">
+            <span class="text-2xl">🪄</span>
+            <span class="font-extrabold text-lg text-sky-600 tracking-wide">たしざん ぼうけん</span>
+        </div>
+        
+        <div class="flex items-center space-x-3">
+            <!-- Level / Stars -->
+            <div class="bg-amber-100 border border-amber-300 px-3 py-1 rounded-full flex items-center space-x-1">
+                <i class="fa-solid fa-star text-amber-500 text-sm"></i>
+                <span id="star-count" class="font-black text-amber-700 text-sm">0</span>
+            </div>
+            <!-- Stage Display -->
+            <div class="bg-indigo-100 border border-indigo-200 px-3 py-1 rounded-full flex items-center space-x-1">
+                <i class="fa-solid fa-map text-indigo-500 text-sm"></i>
+                <span id="map-step-header" class="font-bold text-indigo-700 text-xs">マス 1</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 relative overflow-hidden flex flex-col">
+
+        <!-- VIEW 1: Math Quiz View (Default hidden, shown when playing) -->
+        <div id="quiz-view" class="absolute inset-0 flex flex-col justify-between p-4 max-w-md mx-auto w-full transition-opacity duration-300 opacity-0 pointer-events-none">
+            
+            <!-- Progress Bar & Question Counter -->
+            <div class="w-full bg-white/90 rounded-2xl p-3 shadow-md border border-sky-100">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="text-xs font-bold text-sky-600"><i class="fa-solid fa-flag-checkered mr-1"></i>もんだい</span>
+                    <span id="question-progress-text" class="text-xs font-black text-sky-800">1 / 10 問め</span>
+                </div>
+                <!-- Progress Bar Track -->
+                <div class="w-full bg-slate-100 h-3.5 rounded-full overflow-hidden p-0.5 border border-slate-200">
+                    <div id="progress-bar" class="bg-gradient-to-r from-sky-400 to-indigo-500 h-full rounded-full transition-all duration-300" style="width: 10%;"></div>
+                </div>
+            </div>
+
+            <!-- Question Card -->
+            <div id="problem-card" class="bg-white rounded-3xl p-5 shadow-xl border-2 border-sky-200 my-auto text-center relative pop-in">
+                <!-- Hint Trigger Badge -->
+                <div id="carry-badge" class="hidden absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-400 text-amber-950 font-black text-xs px-3 py-1 rounded-full shadow border border-amber-200 flex items-center gap-1">
+                    <span>💡</span> くりあがりがあるよ！
+                </div>
+
+                <!-- Equation Display -->
+                <div class="flex justify-center items-center gap-3 my-2 text-5xl font-black text-slate-800">
+                    <span id="num1">7</span>
+                    <span class="text-sky-500">+</span>
+                    <span id="num2">5</span>
+                    <span class="text-slate-400">=</span>
+                    <div id="answer-box" class="w-20 h-16 bg-sky-50 rounded-2xl border-4 border-dashed border-sky-400 flex items-center justify-center text-4xl font-black text-sky-600 shadow-inner">
+                        ?
+                    </div>
+                </div>
+
+                <!-- Hint Button (Shown when carryover happens) -->
+                <button id="toggle-hint-btn" onclick="toggleHint()" class="hidden mt-2 text-xs font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 px-4 py-1.5 rounded-full border border-amber-200 items-center justify-center gap-1 mx-auto transition-colors">
+                    <i class="fa-solid fa-lightbulb text-amber-500"></i> <span id="hint-btn-text">ヒントをみる</span>
+                </button>
+
+                <!-- Hint Drawer Panel -->
+                <div id="hint-panel" class="hidden mt-3 pt-3 border-t border-dashed border-amber-200 bg-amber-50/90 rounded-2xl p-3 text-center">
+                    <div class="text-xs font-extrabold text-amber-900 mb-2 flex items-center justify-center gap-1">
+                        <span>🍒</span> さくらんぼで 10 をつくろう！
+                    </div>
+                    
+                    <!-- Cherry Math Visual Diagram -->
+                    <div id="cherry-math-visual" class="w-full">
+                        <!-- Dynamically injected via buildHintVisual() -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Keypad Section -->
+            <div class="bg-white/80 backdrop-blur-md rounded-3xl p-3 shadow-lg border border-sky-100">
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="pressKey(1)" class="btn-key bg-white hover:bg-sky-50 text-slate-800 text-2xl font-black py-3 rounded-2xl border border-slate-200">1</button>
+                    <button onclick="pressKey(2)" class="btn-key bg-white hover:bg-sky-50 text-slate-800 text-2xl font-black py-3 rounded-2xl border border-slate-200">2</button>
+                    <button onclick="pressKey(3)" class="btn-key bg-white hover:bg-sky-50 text-slate-800 text-2xl font-black py-3 rounded-2xl border border-slate-200">3</button>
+                    <button onclick="pressKey(4)" class="btn-key bg-white hover:bg-sky-50 text-slate-800 text-2xl font-black py-3 rounded-2xl border border-slate-200">4</button>
+                    <button onclick="pressKey(5)" class="btn-key bg-white hover:bg-sky-50 text-slate-800 text-2xl font-black py-3 rounded-2xl border border-slate-200">5</button>
+                    <button onclick="pressKey(6)" class="btn-key bg-white hover:bg-sky-50 text-slate-800 text-2xl font-black py-3 rounded-2xl border border-slate-200">6</button>
+                    <button onclick="pressKey(7)" class="btn-key bg-white hover:bg-sky-50 text-slate-800 text-2xl font-black py-3 rounded-2xl border border-slate-200">7</button>
+                    <button onclick="pressKey(8)" class="btn-key bg-white hover:bg-sky-50 text-slate-800 text-2xl font-black py-3 rounded-2xl border border-slate-200">8</button>
+                    <button onclick="pressKey(9)" class="btn-key bg-white hover:bg-sky-50 text-slate-800 text-2xl font-black py-3 rounded-2xl border border-slate-200">9</button>
+                    
+                    <button onclick="clearKey()" class="btn-key bg-slate-100 text-slate-600 text-lg font-bold py-3 rounded-2xl border border-slate-300">けす</button>
+                    <button onclick="pressKey(0)" class="btn-key bg-white hover:bg-sky-50 text-slate-800 text-2xl font-black py-3 rounded-2xl border border-slate-200">0</button>
+                    <button onclick="submitAnswer()" class="btn-key bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white text-xl font-black py-3 rounded-2xl shadow-md flex items-center justify-center gap-1">
+                        こたえる <i class="fa-solid fa-check text-base"></i>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- VIEW 2: Adventure Map View (Default Active on Load) -->
+        <div id="map-view" class="absolute inset-0 flex flex-col justify-between p-4 max-w-md mx-auto w-full transition-opacity duration-300">
+            
+            <div class="bg-white/90 rounded-2xl p-3 shadow-md border border-indigo-100 text-center">
+                <h2 class="text-base font-black text-indigo-700"><i class="fa-solid fa-map-location-dot mr-1"></i>ぼうけんマップ</h2>
+                <p class="text-xs text-slate-600 font-bold">マスをタップするか、下のボタンで出発！</p>
+            </div>
+
+            <!-- Scrollable Map Road Container -->
+            <div class="flex-1 my-3 bg-emerald-100 rounded-3xl border-4 border-emerald-300 p-4 relative overflow-y-auto no-scrollbar flex flex-col justify-end shadow-inner">
+                <!-- Map Background Path Visual -->
+                <div id="map-tiles-container" class="relative w-full flex flex-col items-center gap-8 py-6">
+                    <!-- Map Tiles dynamically injected via JS -->
+                </div>
+            </div>
+
+            <!-- Start Next Round Button -->
+            <button id="start-round-btn" onclick="startNewRound()" class="w-full bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 active:scale-95 text-amber-950 font-black text-lg py-3.5 rounded-2xl shadow-lg border-2 border-amber-200 flex items-center justify-center gap-2 transition-all">
+                <span>🎮 マス <span id="btn-target-stage">1</span> のもんだいに挑戦！</span> <i class="fa-solid fa-arrow-right"></i>
+            </button>
+        </div>
+
+    </main>
+
+    <!-- Navigation Footer Bar -->
+    <nav class="w-full bg-white border-t border-slate-200 px-6 py-2 flex justify-around items-center z-10 shrink-0">
+        <button onclick="switchView('quiz')" id="nav-quiz-btn" class="flex flex-col items-center text-slate-400 font-bold">
+            <i class="fa-solid fa-calculator text-xl mb-0.5"></i>
+            <span class="text-[10px]">べんきょう</span>
+        </button>
+        <button onclick="switchView('map')" id="nav-map-btn" class="flex flex-col items-center text-indigo-600 font-bold">
+            <i class="fa-solid fa-map-marked-alt text-xl mb-0.5"></i>
+            <span class="text-[10px]">マップ</span>
+        </button>
+    </nav>
+
+    <script>
+        /* Web Audio API for iOS sound effects */
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+            }
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+            playCorrect() {
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(523.25, now); // C5
+                osc.frequency.setValueAtTime(659.25, now + 0.1); // E5
+                osc.frequency.setValueAtTime(783.99, now + 0.2); // G5
+                osc.frequency.setValueAtTime(1046.50, now + 0.3); // C6
+                
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.5);
+            }
+            playWrong() {
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(180, now);
+                osc.frequency.setValueAtTime(140, now + 0.15);
+                
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.35);
+            }
+            playKey() {
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(400, now);
+                gain.gain.setValueAtTime(0.08, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.08);
+            }
+            playStep() {
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.12);
+            }
+        }
+
+        const sound = new SoundEngine();
+
+        let gameState = {
+            num1: 0,
+            num2: 0,
+            correctAnswer: 0,
+            currentInput: "",
+            questionIndex: 1, // 1 to 10
+            totalQuestions: 10,
+            stars: 0,
+            mapStep: 1, // Player location on map (1 to 15)
+            characterEmoji: '🐣',
+            isCarryover: false
+        };
+
+        // Load saved progress if exists
+        function loadSaveData() {
+            const saved = localStorage.getItem('math_adventure_save');
+            if (saved) {
+                try {
+                    const data = JSON.parse(saved);
+                    gameState.stars = data.stars || 0;
+                    gameState.mapStep = data.mapStep || 1;
+                } catch(e) {}
+            }
+            updateHeaderUI();
+        }
+
+        function saveData() {
+            localStorage.setItem('math_adventure_save', JSON.stringify({
+                stars: gameState.stars,
+                mapStep: gameState.mapStep
+            }));
+        }
+
+        function updateHeaderUI() {
+            document.getElementById('star-count').innerText = gameState.stars;
+            document.getElementById('map-step-header').innerText = `マス ${gameState.mapStep}`;
+            const btnStage = document.getElementById('btn-target-stage');
+            if (btnStage) btnStage.innerText = gameState.mapStep;
+        }
+
+        /* Build Visual Cherry Math (さくらんぼ計算) */
+        function buildHintVisual(a, b) {
+            const needForTen = 10 - a; // What 'a' needs to reach 10
+            const remainder = b - needForTen; // Remainder of 'b'
+            const sum = a + b;
+
+            const visualContainer = document.getElementById('cherry-math-visual');
+            visualContainer.innerHTML = `
+                <div class="flex flex-col items-center justify-center p-3 bg-gradient-to-b from-amber-50 to-orange-50 rounded-2xl border border-amber-200 shadow-sm">
+                    <!-- Top Equation Row with Cherry Branches -->
+                    <div class="flex items-start justify-center gap-3 my-1">
+                        
+                        <!-- Left Number A -->
+                        <div class="flex flex-col items-center">
+                            <div class="w-12 h-12 bg-sky-500 text-white font-black text-2xl rounded-2xl flex items-center justify-center shadow-md ring-4 ring-sky-200">
+                                ${a}
+                            </div>
+                            <span class="text-[10px] font-black text-sky-600 mt-1.5 bg-sky-100 px-1.5 py-0.5 rounded-full">あと ${needForTen}</span>
+                        </div>
+
+                        <span class="text-2xl font-black text-amber-500 mt-2">+</span>
+
+                        <!-- Right Number B (Split with Cherry Stems) -->
+                        <div class="flex flex-col items-center">
+                            <!-- Host Ball -->
+                            <div class="w-12 h-12 bg-rose-500 text-white font-black text-2xl rounded-full flex items-center justify-center shadow-md ring-4 ring-rose-200 relative z-10">
+                                ${b}
+                            </div>
+                            
+                            <!-- SVG Cherry Stems -->
+                            <svg class="w-20 h-7 -my-1 z-0" viewBox="0 0 80 28">
+                                <path d="M 40 2 L 18 26" stroke="#f43f5e" stroke-width="3" stroke-dasharray="3,2" fill="none"/>
+                                <path d="M 40 2 L 62 26" stroke="#f43f5e" stroke-width="3" stroke-dasharray="3,2" fill="none"/>
+                            </svg>
+
+                            <!-- Split Cherry Cherries -->
+                            <div class="flex items-center gap-3 z-10">
+                                <div class="w-10 h-10 bg-sky-100 border-2 border-sky-400 text-sky-700 font-black text-lg rounded-full flex items-center justify-center shadow">
+                                    ${needForTen}
+                                </div>
+                                <div class="w-10 h-10 bg-rose-100 border-2 border-rose-400 text-rose-700 font-black text-lg rounded-full flex items-center justify-center shadow">
+                                    ${remainder}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Flow Diagram Summary -->
+                    <div class="mt-3 pt-2.5 border-t border-amber-200/80 w-full flex items-center justify-center gap-2 text-xs font-black">
+                        <div class="bg-sky-100 text-sky-800 px-2.5 py-1 rounded-xl border border-sky-200 flex items-center gap-1">
+                            <span>${a}</span> + <span>${needForTen}</span> = <span class="text-sky-600 text-sm">10</span>
+                        </div>
+                        <span class="text-amber-500 font-extrabold">➜</span>
+                        <div class="bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-xl border border-emerald-200 flex items-center gap-1">
+                            <span>10</span> + <span>${remainder}</span> = <span class="text-emerald-600 text-sm">${sum}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function generateProblem() {
+            // Decide whether to force carryover (sum >= 10) or random 1-digit addition
+            // Ensure ~60% of questions have carryover for practice
+            const forceCarry = Math.random() < 0.6;
+            
+            let a, b;
+            if (forceCarry) {
+                a = Math.floor(Math.random() * 8) + 2; // 2 to 9
+                const minB = 10 - a;
+                b = Math.floor(Math.random() * (9 - minB + 1)) + minB; // b so that a + b >= 10
+            } else {
+                a = Math.floor(Math.random() * 8) + 1; // 1 to 8
+                b = Math.floor(Math.random() * (9 - a)) + 1; // a + b < 10
+            }
+
+            gameState.num1 = a;
+            gameState.num2 = b;
+            gameState.correctAnswer = a + b;
+            gameState.currentInput = "";
+            gameState.isCarryover = (a + b >= 10);
+
+            // Update UI
+            document.getElementById('num1').innerText = a;
+            document.getElementById('num2').innerText = b;
+            document.getElementById('answer-box').innerText = "?";
+            document.getElementById('answer-box').classList.remove('text-emerald-600', 'border-emerald-500');
+            document.getElementById('answer-box').classList.add('text-sky-600', 'border-sky-400');
+
+            // Handle Hint display status
+            const carryBadge = document.getElementById('carry-badge');
+            const hintBtn = document.getElementById('toggle-hint-btn');
+            const hintPanel = document.getElementById('hint-panel');
+            
+            hintPanel.classList.add('hidden');
+            document.getElementById('hint-btn-text').innerText = "ヒントをみる";
+
+            if (gameState.isCarryover) {
+                carryBadge.classList.remove('hidden');
+                hintBtn.classList.remove('hidden');
+                hintBtn.classList.add('flex');
+                buildHintVisual(a, b);
+            } else {
+                carryBadge.classList.add('hidden');
+                hintBtn.classList.add('hidden');
+                hintBtn.classList.remove('flex');
+            }
+
+            // Animate Card
+            const card = document.getElementById('problem-card');
+            card.classList.remove('pop-in', 'shake');
+            void card.offsetWidth; // trigger reflow
+            card.classList.add('pop-in');
+        }
+
+        function toggleHint() {
+            sound.playKey();
+            const hintPanel = document.getElementById('hint-panel');
+            const btnText = document.getElementById('hint-btn-text');
+            if (hintPanel.classList.contains('hidden')) {
+                hintPanel.classList.remove('hidden');
+                btnText.innerText = "ヒントをとじる";
+            } else {
+                hintPanel.classList.add('hidden');
+                btnText.innerText = "ヒントをみる";
+            }
+        }
+
+        function pressKey(num) {
+            sound.playKey();
+            if (gameState.currentInput.length < 2) { // Max 2 digits (e.g., 18)
+                gameState.currentInput += num.toString();
+                document.getElementById('answer-box').innerText = gameState.currentInput;
+            }
+        }
+
+        function clearKey() {
+            sound.playKey();
+            gameState.currentInput = "";
+            document.getElementById('answer-box').innerText = "?";
+        }
+
+        function submitAnswer() {
+            if (!gameState.currentInput) return;
+
+            const userAns = parseInt(gameState.currentInput, 10);
+            const card = document.getElementById('problem-card');
+
+            if (userAns === gameState.correctAnswer) {
+                // Correct!
+                sound.playCorrect();
+                gameState.stars += 1;
+                saveData();
+                updateHeaderUI();
+
+                // Visual feedback
+                const ansBox = document.getElementById('answer-box');
+                ansBox.classList.remove('text-sky-600', 'border-sky-400');
+                ansBox.classList.add('text-emerald-600', 'border-emerald-500');
+
+                // Confetti mini burst
+                confetti({
+                    particleCount: 25,
+                    spread: 60,
+                    origin: { y: 0.6 }
+                });
+
+                setTimeout(() => {
+                    if (gameState.questionIndex < gameState.totalQuestions) {
+                        gameState.questionIndex++;
+                        updateProgressBar();
+                        generateProblem();
+                    } else {
+                        // Completed 10 Questions!
+                        handleRoundCompletion();
+                    }
+                }, 800);
+
+            } else {
+                // Wrong!
+                sound.playWrong();
+                card.classList.remove('shake');
+                void card.offsetWidth;
+                card.classList.add('shake');
+
+                // Auto-show hint on mistake if carryover
+                if (gameState.isCarryover) {
+                    const hintPanel = document.getElementById('hint-panel');
+                    hintPanel.classList.remove('hidden');
+                    document.getElementById('hint-btn-text').innerText = "ヒントをとじる";
+                }
+
+                // Clear input after short delay
+                setTimeout(() => {
+                    gameState.currentInput = "";
+                    document.getElementById('answer-box').innerText = "?";
+                }, 400);
+            }
+        }
+
+        function updateProgressBar() {
+            document.getElementById('question-progress-text').innerText = `${gameState.questionIndex} / ${gameState.totalQuestions} 問め`;
+            const percent = (gameState.questionIndex / gameState.totalQuestions) * 100;
+            document.getElementById('progress-bar').style.width = `${percent}%`;
+        }
+
+        function handleRoundCompletion() {
+            // Big Celebration Confetti
+            confetti({
+                particleCount: 100,
+                spread: 80,
+                origin: { y: 0.5 }
+            });
+
+            // Advance 1 step on map
+            gameState.mapStep += 1;
+            saveData();
+            updateHeaderUI();
+
+            setTimeout(() => {
+                // Switch to Map View automatically & animate character movement
+                switchView('map');
+                renderMap();
+                animateMapAdvance();
+            }, 1000);
+        }
+
+        function startNewRound() {
+            sound.playKey();
+            gameState.questionIndex = 1;
+            updateProgressBar();
+            generateProblem();
+            switchView('quiz');
+        }
+
+        function switchView(viewName) {
+            const quizView = document.getElementById('quiz-view');
+            const mapView = document.getElementById('map-view');
+            const navQuiz = document.getElementById('nav-quiz-btn');
+            const navMap = document.getElementById('nav-map-btn');
+
+            if (viewName === 'quiz') {
+                quizView.classList.remove('opacity-0', 'pointer-events-none');
+                mapView.classList.add('opacity-0', 'pointer-events-none');
+                
+                navQuiz.className = "flex flex-col items-center text-sky-600 font-bold";
+                navMap.className = "flex flex-col items-center text-slate-400 font-bold";
+            } else {
+                quizView.classList.add('opacity-0', 'pointer-events-none');
+                mapView.classList.remove('opacity-0', 'pointer-events-none');
+                
+                navQuiz.className = "flex flex-col items-center text-slate-400 font-bold";
+                navMap.className = "flex flex-col items-center text-indigo-600 font-bold";
+                
+                renderMap();
+            }
+        }
+
+        function renderMap() {
+            const container = document.getElementById('map-tiles-container');
+            container.innerHTML = '';
+
+            const totalTiles = 15; // Map length
+
+            for (let i = totalTiles; i >= 1; i--) {
+                const isCurrent = (i === gameState.mapStep);
+                const isPassed = (i < gameState.mapStep);
+
+                const tile = document.createElement('div');
+                tile.id = `map-tile-${i}`;
+                
+                // Zig-zag placement logic for snake-like road
+                const offsetClass = (i % 2 === 0) ? 'translate-x-12' : '-translate-x-12';
+
+                let bgStyle = 'bg-white text-slate-700 border-slate-300 hover:border-indigo-400 cursor-pointer';
+                let icon = `${i}`;
+
+                if (i === 15) {
+                    icon = '👑'; // Goal
+                    bgStyle = 'bg-amber-300 text-amber-950 border-amber-400 text-xl font-bold cursor-pointer';
+                } else if (i % 5 === 0) {
+                    icon = '🎁'; // Treasure tile
+                    bgStyle = 'bg-purple-200 text-purple-900 border-purple-300 cursor-pointer';
+                }
+
+                if (isPassed) {
+                    bgStyle = 'bg-emerald-400 text-white border-emerald-500 cursor-pointer';
+                    icon = '✓';
+                }
+
+                if (isCurrent) {
+                    bgStyle = 'bg-indigo-500 text-white border-indigo-600 ring-4 ring-indigo-200 animate-pulse cursor-pointer';
+                }
+
+                tile.className = `w-14 h-14 rounded-2xl border-4 flex items-center justify-center font-black text-base shadow-md relative transition-all duration-300 ${offsetClass} ${bgStyle}`;
+                tile.innerHTML = `<span>${icon}</span>`;
+
+                // If user taps the active current stage tile, launch game!
+                if (isCurrent) {
+                    tile.onclick = startNewRound;
+
+                    // Tap badge
+                    const badge = document.createElement('div');
+                    badge.className = 'absolute -bottom-6 bg-amber-400 text-amber-950 text-[10px] font-black px-2 py-0.5 rounded-full shadow border border-amber-200 whitespace-nowrap z-20';
+                    badge.innerText = 'タップで挑戦！';
+                    tile.appendChild(badge);
+
+                    // Player character
+                    const charElem = document.createElement('div');
+                    charElem.id = 'player-character';
+                    charElem.className = 'absolute -top-8 text-3xl filter drop-shadow-md z-20 transition-all duration-500';
+                    charElem.innerText = gameState.characterEmoji;
+                    tile.appendChild(charElem);
+                }
+
+                container.appendChild(tile);
+            }
+        }
+
+        function animateMapAdvance() {
+            const char = document.getElementById('player-character');
+            if (char) {
+                sound.playStep();
+                char.classList.add('walking');
+                setTimeout(() => {
+                    char.classList.remove('walking');
+                }, 1000);
+            }
+        }
+
+        window.onload = function() {
+            loadSaveData();
+            generateProblem();
+            updateProgressBar();
+            // Start directly on Map View!
+            switchView('map');
+        };
+    </script>
+</body>
+</html>
