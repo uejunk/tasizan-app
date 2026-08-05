@@ -8,7 +8,7 @@
 tasizan-app/
 ├── index.html                # ランチャー(アプリ一覧ホーム画面)
 ├── apps/
-│   ├── tasizan/index.html    # たしざん ぼうけん (足し算アプリ)
+│   ├── tasizan/index.html    # １けたのたしざん (足し算アプリ)
 │   └── eitango/index.html    # えいたんご (英単語アプリ)
 ├── shared/
 │   └── common.js             # 共通: SoundEngine / SaveManager / StarCounter
@@ -21,7 +21,7 @@ tasizan-app/
 
 | アプリ | パス | 機能 |
 |--------|------|------|
-| たしざん ぼうけん | `apps/tasizan/` | 1桁の足し算、繰り上がりヒント、冒険マップ(無限伸長) |
+| １けたのたしざん | `apps/tasizan/` | 1桁の足し算、繰り上がりヒント、冒険マップ(無限伸長) |
 | えいたんご | `apps/eitango/` | 4択の英単語クイズ、10問1ラウンド |
 
 ## 共通機能 (`shared/common.js`)
