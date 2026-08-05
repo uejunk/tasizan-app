@@ -29,6 +29,13 @@
             padding-bottom: env(safe-area-inset-bottom);
             background: linear-gradient(135deg, #e0f2fe 0%, #fef3c7 100%);
             min-height: 100vh;
+            min-height: 100dvh;
+        }
+
+        /* App container uses dynamic viewport height to fix iOS Safari overflow */
+        .app-screen {
+            height: 100vh;
+            height: 100dvh;
         }
 
         /* Keypad button press effect */
@@ -80,7 +87,7 @@
         }
     </style>
 </head>
-<body class="flex flex-col h-screen overflow-hidden text-slate-800">
+<body class="app-screen flex flex-col h-screen overflow-hidden text-slate-800">
 
     <!-- Top Header Bar -->
     <header class="w-full bg-white/80 backdrop-blur-md border-b border-sky-100 px-4 py-2 flex justify-between items-center z-10 shrink-0 shadow-sm">

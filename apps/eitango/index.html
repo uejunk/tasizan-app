@@ -27,6 +27,11 @@
             padding-bottom: env(safe-area-inset-bottom);
             background: linear-gradient(135deg, #d1fae5 0%, #fef3c7 100%);
             min-height: 100vh;
+            min-height: 100dvh;
+        }
+        .app-screen {
+            height: 100vh;
+            height: 100dvh;
         }
         .btn-choice {
             transition: transform 0.08s ease, box-shadow 0.08s ease;
@@ -54,7 +59,7 @@
         }
     </style>
 </head>
-<body class="flex flex-col h-screen overflow-hidden text-slate-800">
+<body class="app-screen flex flex-col h-screen overflow-hidden text-slate-800">
 
     <!-- Header -->
     <header class="w-full bg-white/80 backdrop-blur-md border-b border-emerald-100 px-4 py-2 flex justify-between items-center z-10 shrink-0 shadow-sm">
